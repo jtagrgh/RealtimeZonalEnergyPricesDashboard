@@ -8,9 +8,9 @@ save_data_with_ext = save_data_fname + '.csv'
 blob_url = f'gs://ieso-zonal-data/{save_data_fname}.csv'
 
 
-def get_csv_from_gcp():
-    fs = gcsfs.GCSFileSystem()
-    df = pd.read_csv(blob_url, parse_dates=True, index_col=0) if fs.exists(blob_url) else pd.DataFrame()
+def get_csv_from_gcp(token):
+    fs = gcsfs.GCSFileSystem(token=token)
+    df = pd.read_csv(blob_url, storage_options={'token': token}, parse_dates=True, index_col=0) if fs.exists(blob_url) else pd.DataFrame()
     return df
 
 

@@ -1,12 +1,16 @@
 import streamlit as st
 import pandas as pd
 from common import get_csv_from_gcp
+import json
+
+
+token = json.loads(st.secrets['GCP_CREDENTIALS_JSON'])
 
 
 @st.cache_data
 def get_all_data():
     # df = pd.read_csv(data.save_data_fname, parse_dates=True, index_col=0)
-    df = get_csv_from_gcp()
+    df = get_csv_from_gcp(token=token)
     df['poll_time_utc'] = pd.to_datetime(df['poll_time_utc'])
     df.sort_index(inplace=True)
     return df
