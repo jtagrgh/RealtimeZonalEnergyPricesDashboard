@@ -5,6 +5,7 @@ import json
 
 
 token = json.loads(st.secrets['GCP_CREDENTIALS_JSON'])
+password = st.secrets['password']
 
 
 @st.cache_data
@@ -24,6 +25,16 @@ def get_filtered_data(data_df, start, end, columns, sample_period):
     filtered_df = filtered_df.resample(sample_period).mean()
     return filtered_df
 
+
+if 'access_granted' not in st.session_state:
+    st.session_state['access_granted'] = False
+
+if not st.session_state['access_granted']:
+    sel_password = st.text_input('Password', type='password')
+    if sel_password == password:
+        st.session_state['access_granted'] = True
+        st.rerun()
+    st.stop()
 
 all_data = get_all_data().sort_index()
 
