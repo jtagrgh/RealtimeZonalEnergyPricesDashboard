@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-import data
+from common import get_csv_from_gcp
 
 
 @st.cache_data
 def get_all_data():
     # df = pd.read_csv(data.save_data_fname, parse_dates=True, index_col=0)
-    df = data.get_csv_from_gcp()
+    df = get_csv_from_gcp()
     df['poll_time_utc'] = pd.to_datetime(df['poll_time_utc'])
     df.sort_index(inplace=True)
     return df
