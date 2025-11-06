@@ -1,0 +1,1 @@
+gcloud run jobs deploy zonal-price-getter --source . --region=us-east1 --command="python data.py"

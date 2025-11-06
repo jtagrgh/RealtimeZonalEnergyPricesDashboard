@@ -1,85 +1,85 @@
 import streamlit as st
 import pandas as pd
-from common import get_csv_from_gcp
 import json
+from data import save_missing_data, get_date
+import threading
+import datetime
 
 
-token = json.loads(st.secrets['GCP_CREDENTIALS_JSON'])
-password = st.secrets['password']
+saved_data_name = 'saved_data'
 
 
-@st.cache_data
-def get_all_data():
-    # df = pd.read_csv(data.save_data_fname, parse_dates=True, index_col=0)
-    df = get_csv_from_gcp(token=token)
-    df['poll_time_utc'] = pd.to_datetime(df['poll_time_utc'])
-    df.sort_index(inplace=True)
-    return df
+if saved_data_name not in st.session_state:
+    st.session_state[saved_data_name] = pd.DataFrame()
 
 
-def get_filtered_data(data_df, start, end, columns, sample_period):
-    start = pd.Timestamp(start)
-    end = pd.Timestamp(end) + pd.Timedelta(days=1)
-    filtered_df = data_df.loc[(data_df.index >= start) & (data_df.index < end)]
-    filtered_df = filtered_df[columns]
-    filtered_df = filtered_df.resample(sample_period).mean()
-    return filtered_df
+def save_df_session(df):
+    st.session_state[saved_data_name] = df
+    link = df.iloc[-1]['link']
+    status = st.session_state['status']
+    date = get_date(link)
+    print(date)
+    status.write(f'Downloaded: {date}')
 
 
-if 'access_granted' not in st.session_state:
-    st.session_state['access_granted'] = False
+def get_df_session() -> pd.DataFrame:
+    return st.session_state[saved_data_name]
 
-if not st.session_state['access_granted']:
-    sel_password = st.text_input('Password', type='password')
-    if sel_password == password:
-        st.session_state['access_granted'] = True
-        st.rerun()
-    st.stop()
 
-all_data = get_all_data().sort_index()
+def process_data(df: pd.DataFrame, sample_period, columns, reverse):
+    processed_df = df[columns].resample(sample_period).mean()
+    processed_df.sort_index(ascending=not reverse, inplace=True)
+    return processed_df
+
 
 st.title('IESO Realtime Zonal Energy Prices')
 
-last_poll_utc = all_data.loc[all_data.index.max()]['poll_time_utc'] if not all_data.empty and 'poll_time_utc' in all_data.columns else None
-last_poll_str = last_poll_utc.strftime('%Y/%m/%d %H:%M:%S') if last_poll_utc is not None else ''
+today = datetime.date.today()
+yesterday = today - datetime.timedelta(days=1)
 
-last_poll_link = all_data.loc[all_data.index.max()]['link'] if not all_data.empty and 'link' in all_data.columns else ''
-
-st.write(f'Last updated: {last_poll_str}')
-st.write(f'Polled from: {last_poll_link}')
+with st.form('Date Filter Form'):
+    sel_dates = st.date_input('Date Range', (yesterday, today), max_value=today)
+    submitted = st.form_submit_button('Get Data')
+    if submitted and len(sel_dates) >= 2:
+        min_date = pd.Timestamp(sel_dates[0])
+        max_date = pd.Timestamp(sel_dates[1])
+        st.session_state['status'] = st.status('Download Status')
+        save_missing_data(get_df_session, save_df_session, 1, min_date, max_date)
+        st.session_state['status'].update(state='complete')
 
 st.divider()
 
+if get_df_session().empty:
+    st.stop()
+
+all_data = get_df_session().copy()
+all_data.index.name = 'timestamp'
+
+if 'link' not in all_data.columns:
+    st.error('Missing <link> column')
+    st.stop()
+
+if 'poll_time_utc' not in all_data.columns:
+    st.error('Missing <poll_time_utc> column')
+    st.stop()
+
 all_data.columns = [col.replace(':', '_') for col in all_data.columns]
-
-min_date = all_data.index.min().to_pydatetime()
-max_date = all_data.index.max().to_pydatetime()
-
-sel_dates = st.date_input('Date Range', (max_date, max_date), min_date, max_date)
-sel_dates = sel_dates if len(sel_dates) == 2 else 2*sel_dates if len(sel_dates) == 1 else (max_date, max_date)
-
-data_columns = all_data.columns.drop('link')
+data_columns = all_data.columns.drop(['link', 'poll_time_utc'])
 first_col = data_columns[0] if len(data_columns) >= 1 else None
 
 sel_columns = st.pills('Regions', data_columns, selection_mode='multi', default=first_col)
 sel_columns = sel_columns if sel_columns is not None else []
 
-sel_sample = st.segmented_control('Sample Period', ['5min', '12h', '1h', '1d'], default='5min')
-sel_sample = sel_sample if sel_sample is not None else '1h' 
+sel_sample = st.segmented_control('Sample Period', ['5min', '1h', '12h', '1d'], default='5min')
+sel_sample = sel_sample if sel_sample is not None else '5min'
 
-st.divider()
+sel_reverse = st.checkbox('Reverse order')
 
-sel_show_data = st.toggle('Show Data', value=True)
+processed_data = process_data(all_data, sel_sample, sel_columns, sel_reverse)
 
-if len(sel_columns) == 0:
-    st.write('No Regions selected.')
-
-filtered_data = get_filtered_data(all_data, sel_dates[0], sel_dates[1], sel_columns, sel_sample)\
-
-if sel_show_data:
-    st.dataframe(filtered_data)
+st.dataframe(processed_data)
 
 sel_show_chart = st.toggle('Show Chart')
 
 if sel_show_chart:
-    st.line_chart(filtered_data)
+    st.line_chart(processed_data)
