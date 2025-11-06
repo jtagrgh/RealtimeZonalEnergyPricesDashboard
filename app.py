@@ -13,9 +13,8 @@ if saved_data_name not in st.session_state:
     st.session_state[saved_data_name] = pd.DataFrame()
 
 
-def save_df_session(df):
+def save_df_session(df, link):
     st.session_state[saved_data_name] = df
-    link = df.iloc[-1]['link']
     status = st.session_state['status']
     date = get_date(link)
     print(date)
@@ -44,7 +43,7 @@ with st.form('Date Filter Form'):
         min_date = pd.Timestamp(sel_dates[0])
         max_date = pd.Timestamp(sel_dates[1])
         st.session_state['status'] = st.status('Download Status')
-        save_missing_data(get_df_session, save_df_session, 1, min_date, max_date)
+        save_missing_data(get_df_session, save_df_session, min_date, max_date)
         st.session_state['status'].update(state='complete')
 
 st.divider()

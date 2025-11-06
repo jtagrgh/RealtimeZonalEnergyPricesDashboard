@@ -54,7 +54,7 @@ def price_links():
     return price_links
 
 
-def save_missing_data(get_data_fn, save_data_fn, chunk_size, min_date, max_date):
+def save_missing_data(get_data_fn, save_data_fn, min_date, max_date):
     saved_df = get_data_fn()
     
     saved_links = saved_df['link'].to_list() if 'link' in saved_df.columns else []
@@ -73,12 +73,8 @@ def save_missing_data(get_data_fn, save_data_fn, chunk_size, min_date, max_date)
         saved_df = saved_df.combine_first(df)
         full_index = pd.date_range(saved_df.index.min(), saved_df.index.max(), freq='5min')
         saved_df = saved_df.reindex(full_index)
-        if chunk_count % chunk_size == 0:
-            save_data_fn(saved_df)
-        chunk_count += 1
-
-    save_data_fn(saved_df)
+        save_data_fn(saved_df, link)
 
 
-if __name__ == '__main__':
-    save_missing_data(get_csv_from_local, save_df_local, 1, pd.Timestamp.now() - pd.Timedelta(days=1), pd.Timestamp.now())
+# if __name__ == '__main__':
+    # save_missing_data(get_csv_from_local, save_df_local, 1, pd.Timestamp.now() - pd.Timedelta(days=1), pd.Timestamp.now())
